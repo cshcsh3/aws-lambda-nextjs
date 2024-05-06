@@ -7,7 +7,6 @@ import * as lambda from 'aws-cdk-lib/aws-lambda'
 import * as origins from 'aws-cdk-lib/aws-cloudfront-origins'
 import * as s3 from 'aws-cdk-lib/aws-s3'
 import * as s3deploy from 'aws-cdk-lib/aws-s3-deployment'
-import { NodejsFunction } from 'aws-cdk-lib/aws-lambda-nodejs'
 
 const path = require('node:path')
 
@@ -21,22 +20,24 @@ export class NextjsLambdaCdkStack extends Stack {
       `arn:aws:lambda:${this.region}:753240598075:layer:LambdaAdapterLayerX86:3`
     )
 
-    // const llrtLayer = lambda.LayerVersion.fromLayerVersionArn(
-    //     this,
-    //     'LLRTLayer',
-    //     `arn:aws:lambda:ap-southeast-1:203543013313:layer:llrt:1`
-    //     );
+    const llrtLayer = lambda.LayerVersion.fromLayerVersionArn(
+      this,
+      'LLRTLayer',
+      `arn:aws:lambda:ap-southeast-1:203543013313:layer:llrt:3`
+    );
 
-    const nextCdkFunction = new NodejsFunction(this, 'NextCdkFunction', {
-      runtime: lambda.Runtime.NODEJS_18_X,
-      entry: path.join(__dirname, '../app/.next/standalone/', 'server.js'),
+    const nextCdkFunction = new lambda.Function(this, 'NextCdkFunction', {
+      runtime: lambda.Runtime.PROVIDED_AL2023,
+      handler: 'run.sh',
+      code: lambda.AssetCode.fromAsset(path.join(__dirname, '../app/.next', 'standalone')),
       architecture: lambda.Architecture.X86_64,
       environment: {
         AWS_LAMBDA_EXEC_WRAPPER: '/opt/bootstrap',
-        RUST_LOG: 'info',
+        RUST_LOG: 'debug',
         PORT: '8080'
       },
-      layers: [lambdaAdapterLayer]
+      layers: [lambdaAdapterLayer, llrtLayer],
+      timeout: Duration.seconds(10),
     })
 
     const api = new apiGateway.RestApi(this, 'api', {
